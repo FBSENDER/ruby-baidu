@@ -1,3 +1,5 @@
+# encoding: utf-8
+
 #coding:UTF-8
 require 'mechanize'
 require 'nokogiri'
@@ -10,7 +12,7 @@ class SearchEngine
         URI(url)
         result = query(url)
         return result.has_result?
-    end 
+    end
 end
 class SearchResult
     def initialize(body,baseuri,pagenumber=nil)
@@ -141,7 +143,9 @@ class MbaiduResult < SearchResult
             href,text,host,is_mobile = '','','',false
             a = result.search("a").first
             is_mobile = true unless a.search("img").empty?
-            host = result.search('[@class="site"]').first.text
+            host = result.search('[@class="site"]').first
+            next if host.nil?
+            host = host.text
             href = a['href']
             text = a.text
             id = href.scan(/&order=(\d+)&/)
@@ -237,7 +241,7 @@ class Baidu < SearchEngine
     def extend(words,level=3,sleeptime=1)
         level = level.to_i - 1
         words = [words] unless words.respond_to? 'each'
-        
+
         extensions = Array.new
         words.each do |word|
             self.query(word)
@@ -254,7 +258,7 @@ class Baidu < SearchEngine
     def popular?(wd)
         return @a.get("http://index.baidu.com/main/word.php?word=#{URI.encode(wd.encode("GBK"))}").body.include?"boxFlash"
     end
-    
+
     def query(wd)
         q = Array.new
         q << "wd=#{wd}"
@@ -311,7 +315,7 @@ class BaiduResult < SearchResult
         raise ArgumentError 'should be Mechanize::Page' unless page.class == Mechanize::Page
         @page = page
     end
-    
+
     def ranks
         return @ranks unless @ranks.nil?
         @ranks = Hash.new
@@ -344,7 +348,7 @@ class BaiduResult < SearchResult
         end
         @ads
     end
-    
+
     #return the top rank number from @ranks with the input host
     # def rank(host)#on base of ranks
     #     ranks.each do |id,line|
@@ -365,7 +369,7 @@ class BaiduResult < SearchResult
     def related_keywords
         @related_keywords ||= @page.search("//div[@id=\"rs\"]//tr//a").map{|keyword| keyword.text}
     end
-    
+
     def next
         @page = BaiduResult.new(Mechanize.new.click(@page.link_with(:text=>/下一页/))) unless @page.link_with(:text=>/下一页/).nil?
     end
@@ -373,5 +377,5 @@ class BaiduResult < SearchResult
     def has_result?
         @page.search('//div[@class="nors"]').empty?
     end
-    
+
 end
