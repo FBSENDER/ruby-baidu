@@ -19,3 +19,6 @@ end
 
 # to get the top rank of host "www.abc.com.cn" by querying "abc"
 Baidu.new.query("abc").rank("www.abc.com.cn")
+
+TODO:
+查询结果不多,翻页不存在时的处理,及rspec
