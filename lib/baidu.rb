@@ -1,7 +1,4 @@
 # encoding: utf-8
-
-#coding:UTF-8
-require 'mechanize'
 require 'nokogiri'
 require 'json'
 require 'addressable/uri'
@@ -267,8 +264,9 @@ class Baidu < SearchEngine
         #uri = URI.encode((BaseUri + queryStr).encode('GBK'))
         uri = URI.encode((BaseUri + queryStr))
         begin
-            @page = @a.get uri
-            BaiduResult.new(@page)
+            # @page = @a.get uri
+            @page = HTTParty.get uri
+            BaiduResult.new(@page,uri)
         rescue Net::HTTP::Persistent::Error
             warn "[timeout] #{uri}"
             return false
@@ -311,23 +309,28 @@ class Baidu < SearchEngine
 end
 
 class BaiduResult < SearchResult
-    def initialize(page)
-        raise ArgumentError 'should be Mechanize::Page' unless page.class == Mechanize::Page
-        @page = page
+    def initialize(page,baseuri,pagenumber=1)
+        File.open('/tmp/file','w'){|f|f.puts page}
+        @page = Nokogiri::HTML page
+        @baseuri = baseuri
+        @pagenumber = pagenumber
+        # raise ArgumentError 'should be Mechanize::Page' unless page.class == Mechanize::Page
+        # @page = page
     end
 
     def ranks
         return @ranks unless @ranks.nil?
         @ranks = Hash.new
-        @page.search("//table[@class=\"result\"]").each do |table|
+        @page.search("//table[@class=\"result\"]|//table[@class=\"result-op\"]").each do |table|
             id = table['id']
             @ranks[id] = Hash.new
-            url = @page.search("//table[@id=\"#{table['id']}\"]//span[@class=\"g\"]").first
-            a = @page.search("//table[@id=\"#{table['id']}\"]//h3/a")
+            url = table.search("[@class=\"g\"]").first
+            url = url.text unless url.nil?
+            a = table.search("a").first
             @ranks[id]['text'] = a.text
-            @ranks[id]['href'] = a.first['href'].sub('http://www.baidu.com/link?url=','').strip
+            @ranks[id]['href'] = url #a.first['href'].sub('http://www.baidu.com/link?url=','').strip
             unless url.nil?
-                url = url.text.strip
+                url = url.strip
                 @ranks[id]['host'] = Addressable::URI.parse(URI.encode("http://#{url}")).host
             else
                 @ranks[id]['host'] = nil
@@ -337,16 +340,46 @@ class BaiduResult < SearchResult
         @ranks
     end
 
-    def ads
-        return @ads unless @ads.nil?
-        @ads = []
-        @page.search("//table").each do |table|
-            id = table['id'].to_i
-            next unless id > 3000
-            url = @page.search("//table[@id='#{id}']//font[@size='-1' and @color='#008000']").first.content
-            @ads << {:id => id, :url => url}
+    def ads_top
+        ads = {}
+        id=0
+        @page.search("//table[@class='EC_mr15']|//table[@class='ec_pp_f']").each do |table|
+            table_id = table['id']
+            next if table_id.nil?
+            id += 1
+            href = table.search("font[@color='#008000']").text.split(/\s/).first.strip
+            title = table.search("a").first.text.strip
+            ads[id.to_s]= {'title'=>title,'href' => href,'host'=>href}
         end
-        @ads
+        ads
+    end
+    def ads_bottom
+        ads = {}
+        @page.search("//table[@class='EC_mr15']|//table[@class='ec_pp_f']").each do |table|
+            id = table['id']
+            next unless id.nil?
+            id = id[-1,1]
+            href = table.search("font[@color='#008000']").text.split(/\s/).first.strip
+            title = table.search("a").first.text.strip
+            ads[id]= {'title'=>title,'href' => href,'host'=>href}
+        end
+        ads
+    end
+    def ads_right
+        ads = {}
+        @page.search("//div[@id='ec_im_container']").each do |table|
+            table.search("div[@id]").each do |div|
+                id = div['id'][-1,1].to_i+1
+                title = div.search("a").first
+                next if title.nil?
+                title = title.text
+                url = div.search("font[@color='#008000']").first
+                next if url.nil?
+                url = url.text
+                ads[id.to_s] = {'title'=>title,'href'=>url,'host'=>url}
+            end
+        end
+        ads
     end
 
     #return the top rank number from @ranks with the input host
@@ -371,7 +404,13 @@ class BaiduResult < SearchResult
     end
 
     def next
-        @page = BaiduResult.new(Mechanize.new.click(@page.link_with(:text=>/下一页/))) unless @page.link_with(:text=>/下一页/).nil?
+        url = @page.xpath('//a[text()="下一页>"]').first
+        return if url.nil?
+        url = url['href']
+        url = URI.join(@baseuri,url).to_s
+        body = HTTParty.get(url)
+        return BaiduResult.new(body,url,@pagenumber+1)
+        # @page = BaiduResult.new(Mechanize.new.click(@page.link_with(:text=>/下一页/))) unless @page.link_with(:text=>/下一页/).nil?
     end
 
     def has_result?
