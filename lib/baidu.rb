@@ -216,9 +216,9 @@ class Baidu < SearchEngine
     PerPage = 100
 
     def initialize
-        @a = Mechanize.new {|agent| agent.user_agent_alias = 'Linux Mozilla'}
-        @a.idle_timeout = 2
-        @a.max_history = 1
+        # @a = Mechanize.new {|agent| agent.user_agent_alias = 'Linux Mozilla'}
+        # @a.idle_timeout = 2
+        # @a.max_history = 1
         @page = nil
     end
 
@@ -253,7 +253,7 @@ class Baidu < SearchEngine
 =end
 
     def popular?(wd)
-        return @a.get("http://index.baidu.com/main/word.php?word=#{URI.encode(wd.encode("GBK"))}").body.include?"boxFlash"
+        return HTTParty.get("http://index.baidu.com/main/word.php?word=#{URI.encode(wd.encode("GBK"))}").body.include?"boxFlash"
     end
 
     def query(wd)
