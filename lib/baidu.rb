@@ -110,6 +110,9 @@ class QihooResult < SearchResult
         end
         result
     end
+    def related_keywords
+        []
+    end
     #下一页
     def next
         next_href = @body.xpath('//a[@id="snext"]')
@@ -220,6 +223,9 @@ class MbaiduResult < SearchResult
         []
     end
     def ads_bottom
+        []
+    end
+    def related_keywords
         []
     end
 =begin
@@ -464,3 +470,4 @@ class BaiduResult < SearchResult
     end
 
 end
+puts Qihoo.new.query('深圳').related_keywords
