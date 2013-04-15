@@ -83,6 +83,33 @@ class QihooResult < SearchResult
         end
         @ranks
     end
+    def ads_top
+        id = 0
+        result = []
+        @body.search("//ul[@id='djbox']/li").each do |li|
+            id+=1
+            title = li.search("a").first.text
+            href = li.search("cite").first.text.downcase
+            host = Addressable::URI.parse(URI.encode(href)).host
+            result[id] = {'title'=>title,'href'=>href,'host'=>host}
+        end
+        result
+    end
+    def ads_bottom
+        []
+    end
+    def ads_right
+        id = 0
+        result = []
+        @body.search("//ul[@id='rightbox']/li").each do |li|
+            id += 1
+            title = li.search("a").first.text
+            href = li.search("cite").first.text.downcase
+            host = Addressable::URI.parse(URI.encode(href)).host
+            result[id] = {'title'=>title,'href'=>href,'host'=>host}
+        end
+        result
+    end
     #下一页
     def next
         next_href = @body.xpath('//a[@id="snext"]')
@@ -175,6 +202,25 @@ class MbaiduResult < SearchResult
             @ranks[id.to_s] = {'href'=>href,'text'=>text,'is_mobile'=>is_mobile,'host'=>host.sub(/\u00A0/,'')}
         end
         @ranks
+    end
+    def ads_top
+        id = 0
+        result = []
+        @body.search("div[@class='ec_wise_ad']/div").each do |div|
+            id += 1
+            href = div.search("span[@class='ec_site']").first.text
+            href = "http://#{href}"
+            title = div.search("a/text()").text.strip
+            host = Addressable::URI.parse(URI.encode(href)).host
+            result[id] = {'title'=>title,'href'=>href,'host'=>host}
+        end
+        result
+    end
+    def ads_right
+        []
+    end
+    def ads_bottom
+        []
     end
 =begin
     #返回当前页中,符合host条件的结果
@@ -340,7 +386,7 @@ class BaiduResult < SearchResult
         @ranks
     end
 
-    def ads_top
+    def ads_bottom
         ads = {}
         id=0
         @page.search("//table[@class='EC_mr15']|//table[@class='ec_pp_f']").each do |table|
@@ -353,7 +399,7 @@ class BaiduResult < SearchResult
         end
         ads
     end
-    def ads_bottom
+    def ads_top
         ads = {}
         @page.search("//table[@class='EC_mr15']|//table[@class='ec_pp_f']").each do |table|
             id = table['id']
