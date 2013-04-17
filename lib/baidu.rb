@@ -396,8 +396,7 @@ class BaiduResult < SearchResult
         ads = {}
         id=0
         @page.search("//table[@class='EC_mr15']|//table[@class='ec_pp_f']").each do |table|
-            table_id = table['id']
-            next if table_id.nil?
+            next if table['id'].nil?
             id += 1
             href = table.search("font[@color='#008000']").text.split(/\s/).first.strip
             title = table.search("a").first.text.strip
@@ -406,11 +405,13 @@ class BaiduResult < SearchResult
         ads
     end
     def ads_top
+        id = 0
         ads = {}
         @page.search("//table[@class='EC_mr15']|//table[@class='ec_pp_f']").each do |table|
-            id = table['id']
+            id += 1
+            # id = table['id']
             next unless id.nil?
-            id = id[-1,1]
+            # id = id[-1,1]
             href = table.search("font[@color='#008000']").text.split(/\s/).first.strip
             title = table.search("a").first.text.strip
             ads[id]= {'title'=>title,'href' => href,'host'=>href}
