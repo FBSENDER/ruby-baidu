@@ -256,7 +256,9 @@ class MbaiduResult < SearchResult
 =end
     #下一页
     def next
-        url = @body.xpath('//a[text()="下一页"]').first['href']
+        nextbutton = @body.xpath('//a[text()="下一页"]').first
+        return nil if nextbutton.nil?
+        url = nextbutton['href']
         url = URI.join(@baseuri,url).to_s
         body = HTTParty.get(url)
         return MbaiduResult.new(body,url,@pagenumber+1)
@@ -469,6 +471,4 @@ class BaiduResult < SearchResult
     def has_result?
         @page.search('//div[@class="nors"]').empty?
     end
-
 end
-puts Qihoo.new.query('深圳').related_keywords
