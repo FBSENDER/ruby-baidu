@@ -126,7 +126,7 @@ class QihooResult < SearchResult
     end
     #有结果
     def has_result?
-        !@body.xpath('//div[@id="main"]/h3').text().include?'没有找到该URL'
+        !@body.search('//div[@id="main"]/h3').text().include?'没有找到该URL'
     end
 end
 
@@ -381,6 +381,7 @@ class BaiduResult < SearchResult
             url = table.search("[@class=\"g\"]").first
             url = url.text unless url.nil?
             a = table.search("a").first
+            next if a.nil?
             @ranks[id]['text'] = a.text
             @ranks[id]['href'] = url #a.first['href'].sub('http://www.baidu.com/link?url=','').strip
             unless url.nil?
@@ -467,8 +468,9 @@ class BaiduResult < SearchResult
         return BaiduResult.new(body,url,@pagenumber+1)
         # @page = BaiduResult.new(Mechanize.new.click(@page.link_with(:text=>/下一页/))) unless @page.link_with(:text=>/下一页/).nil?
     end
-
     def has_result?
-        @page.search('//div[@class="nors"]').empty?
+        submit = @page.search('//a[text()="提交网址"]').first
+        return false if submit and submit['href'].include?'sitesubmit'
+        return true
     end
 end
