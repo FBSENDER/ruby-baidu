@@ -16,10 +16,10 @@ describe Qihoo do
     it "查询关键词'奇虎'后,下一页,再下一页也应是MbaiduResult的实例" do
         page3.class.should == QihooResult
     end
-    it "查询关键词'奇虎'后,360导航域名应该大于1" do
-        page.rank('news.qihoo.com').should > 1
+    it "查询关键词'奇虎'后,百度百科域名应该大于1" do
+        page.rank('baike.baidu.com').should > 1
     end
-    it "查询关键词'奇虎'后,360首页域名应该在10以内" do
+    it "查询关键词'奇虎'后,奇虎首页域名应该等于1" do
         page.rank('www.qihoo.com').should == 1
     end
     it "查询已经被收录的页面收录情况时,应返回true" do

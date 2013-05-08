@@ -34,10 +34,10 @@ describe Baidu do
         bool.should == false
     end
 
-    it "should return 10 words beginning with the query_word" do
+    it "should return over 5 words beginning with the query_word" do
         query_word = '为'
         suggestions = baidu.suggestions(query_word)
-        suggestions.size.should == 10
+        suggestions.size.should > 5
         suggestions.each do |suggestion|
             suggestion[0].should == query_word
         end
