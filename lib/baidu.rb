@@ -5,6 +5,9 @@ require 'addressable/uri'
 require 'httparty'
 class SearchEngine
    #是否收录
+    def initialize(perpage = 100)
+        @perpage = perpage
+    end
     def indexed?(url)
         URI(url)
         result = query(url)
@@ -22,7 +25,14 @@ class SearchResult
             @pagenumber = pagenumber
         end
     end
-
+    def whole
+        {
+            'ads_top'=>ads_top,
+            'ads_right'=>ads_right,
+            'ads_bottom'=>ads_bottom,
+            'ranks'=>ranks
+        }
+    end
     #返回当前页中host满足条件的结果
     def ranks_for(specific_host)
         host_ranks = Hash.new
@@ -64,7 +74,6 @@ end
 
 class QihooResult < SearchResult
     Host = 'www.so.com'
-
     #返回所有当前页的排名结果
     def ranks
         return @ranks unless @ranks.nil?
@@ -267,15 +276,6 @@ class MbaiduResult < SearchResult
 end
 class Baidu < SearchEngine
     BaseUri = 'http://www.baidu.com/s?'
-    PerPage = 100
-
-    def initialize
-        # @a = Mechanize.new {|agent| agent.user_agent_alias = 'Linux Mozilla'}
-        # @a.idle_timeout = 2
-        # @a.max_history = 1
-        @page = nil
-    end
-
     def suggestions(wd)
         json = HTTParty.get("http://suggestion.baidu.com/su?wd=#{URI.encode(wd)}&cb=callback").body.force_encoding('GBK').encode("UTF-8")
         m = /\[([^\]]*)\]/.match json
@@ -313,7 +313,7 @@ class Baidu < SearchEngine
     def query(wd)
         q = Array.new
         q << "wd=#{wd}"
-        q << "rn=#{PerPage}"
+        q << "rn=#{@perpage}"
         queryStr = q.join("&")
         #uri = URI.encode((BaseUri + queryStr).encode('GBK'))
         uri = URI.encode((BaseUri + queryStr))
@@ -364,7 +364,6 @@ end
 
 class BaiduResult < SearchResult
     def initialize(page,baseuri,pagenumber=1)
-        File.open('/tmp/file','w'){|f|f.puts page}
         @page = Nokogiri::HTML page
         @baseuri = baseuri
         @pagenumber = pagenumber
@@ -396,30 +395,29 @@ class BaiduResult < SearchResult
     end
 
     def ads_bottom
+        id = 0
         ads = {}
-        id=0
-        @page.search("//table[@class='EC_mr15']|//table[@class='ec_pp_f']").each do |table|
-            next if table['id'].nil?
+        @page.search("//table[@bgcolor='f5f5f5']").each do |table|
+            next unless table['id'].nil?
             id += 1
-            href = table.search("font[@color='#008000']").text.split(/\s/).first.strip
-            title = table.search("a").first.text.strip
-            ads[id.to_s]= {'title'=>title,'href' => href,'host'=>href}
+            ads[id]= parse_ad(table)
         end
         ads
     end
     def ads_top
         id = 0
         ads = {}
-        @page.search("//table[@class='EC_mr15']|//table[@class='ec_pp_f']").each do |table|
+        @page.search("//table[@bgcolor='f5f5f5']").each do |table|
+            next if id.nil?
             id += 1
-            # id = table['id']
-            next unless id.nil?
-            # id = id[-1,1]
-            href = table.search("font[@color='#008000']").text.split(/\s/).first.strip
-            title = table.search("a").first.text.strip
-            ads[id]= {'title'=>title,'href' => href,'host'=>href}
+            ads[id]= parse_ad(table)
         end
         ads
+    end
+    def parse_ad(table)
+        href = table.search("font[@color='#008000']").text.split(/\s/).first.strip
+        title = table.search("a").first.text.strip
+        {'title'=>title,'href' => href,'host'=>href}
     end
     def ads_right
         ads = {}

@@ -3,7 +3,7 @@
 #coding:UTF-8
 require './lib/baidu.rb'
 describe Baidu do
-    baidu = Baidu.new
+    baidu = Baidu.new(10)
     page = baidu.query '百度'
 
     it "should return BaiduResult" do
@@ -13,11 +13,11 @@ describe Baidu do
     it "should return 100,000,000" do
         page.how_many.should == 100000000
     end
-    it "should return ineter and bigger than 1" do
-        page.rank('baike.baidu.com').should > 1
+    it "should return integer and bigger than 1" do
+        page.rank('site.baidu.com').should > 1
     end
-    it "should return integer and less than 11" do
-        page.rank('www.baidu.com').should < 11
+    it "should return 1" do
+        page.rank('www.baidu.com').should == 1
     end
 
     it "should return BaiduResult" do
