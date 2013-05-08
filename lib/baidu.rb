@@ -5,8 +5,8 @@ require 'addressable/uri'
 require 'httparty'
 class SearchEngine
    #是否收录
-    def initialize(perpage = 100)
-        @perpage = perpage
+    def initialize(pagesize = 100)
+        @pagesize = pagesize#只允许10或100
     end
     def indexed?(url)
         URI(url)
@@ -15,15 +15,12 @@ class SearchEngine
     end
 end
 class SearchResult
-    def initialize(body,baseuri,pagenumber=nil)
-        @body = Nokogiri::HTML body
+    def initialize(page,baseuri,pagenumber=1,pagesize=100)
+        @page = Nokogiri::HTML page
         @baseuri = baseuri
         # @host = URI(baseuri).host
-        if pagenumber.nil?
-            @pagenumber = 1
-        else
-            @pagenumber = pagenumber
-        end
+        @pagenumber = pagenumber
+        @pagesize = pagesize
     end
     def whole
         {
@@ -65,10 +62,10 @@ class Qihoo < SearchEngine
     def query(wd)
         #用原始路径请求
         uri = URI.join("http://#{Host}/",URI.encode('s?q='+wd)).to_s
-        body = HTTParty.get(uri)
+        page = HTTParty.get(uri)
         #如果请求地址被跳转,重新获取当前页的URI,可避免翻页错误
-        uri = URI.join("http://#{Host}/",body.request.path).to_s
-        QihooResult.new(body,uri)
+        uri = URI.join("http://#{Host}/",page.request.path).to_s
+        QihooResult.new(page,uri)
     end
 end
 
@@ -79,7 +76,7 @@ class QihooResult < SearchResult
         return @ranks unless @ranks.nil?
         @ranks = Hash.new
         id = (@pagenumber - 1) * 10
-        @body.xpath('//li[@class="res-list"]').each do |li|
+        @page.search('//li[@class="res-list"]').each do |li|
             a = li.search("h3/a").first
             url = li.search("cite")
             next if a['data-pos'].nil?
@@ -95,7 +92,7 @@ class QihooResult < SearchResult
     def ads_top
         id = 0
         result = []
-        @body.search("//ul[@id='djbox']/li").each do |li|
+        @page.search("//ul[@id='djbox']/li").each do |li|
             id+=1
             title = li.search("a").first.text
             href = li.search("cite").first.text.downcase
@@ -110,7 +107,7 @@ class QihooResult < SearchResult
     def ads_right
         id = 0
         result = []
-        @body.search("//ul[@id='rightbox']/li").each do |li|
+        @page.search("//ul[@id='rightbox']/li").each do |li|
             id += 1
             title = li.search("a").first.text
             href = li.search("cite").first.text.downcase
@@ -124,18 +121,18 @@ class QihooResult < SearchResult
     end
     #下一页
     def next
-        next_href = @body.xpath('//a[@id="snext"]')
+        next_href = @page.xpath('//a[@id="snext"]')
         return false if next_href.empty?
         next_href = next_href.first['href']
         next_href = URI.join(@baseuri,next_href).to_s
         # next_href = URI.join("http://#{@host}",next_href).to_s
-        next_body = HTTParty.get(next_href).body
-        return QihooResult.new(next_body,next_href,@pagenumber+1)
+        next_page = HTTParty.get(next_href).page
+        return QihooResult.new(next_page,next_href,@pagenumber+1)
         #@page = MbaiduResult.new(Mechanize.new.click(@page.link_with(:text=>/下一页/))) unless @page.link_with(:text=>/下一页/).nil?
     end
     #有结果
     def has_result?
-        !@body.search('//div[@id="main"]/h3').text().include?'没有找到该URL'
+        !@page.search('//div[@id="main"]/h3').text().include?'没有找到该URL'
     end
 end
 
@@ -160,22 +157,22 @@ class Mbaidu < SearchEngine
     end
 end
 class MbaiduResult < SearchResult
-    def initialize(body,baseuri,pagenumber=nil)
-        @body = Nokogiri::HTML body
-        @baseuri = baseuri
-        if pagenumber.nil?
-            @pagenumber = 1
-        else
-            @pagenumber = pagenumber
-        end
-    end
+    # def initialize(page,baseuri,pagenumber=nil)
+    #     @page= Nokogiri::HTML page
+    #     @baseuri = baseuri
+    #     if pagenumber.nil?
+    #         @pagenumber = 1
+    #     else
+    #         @pagenumber = pagenumber
+    #     end
+    # end
 
     #返回当前页所有查询结果
     def ranks
         #如果已经赋值说明解析过,不需要重新解析,直接返回结果
         return @ranks unless @ranks.nil?
         @ranks = Hash.new
-        @body.xpath('//div[@class="result"]').each do |result|
+        @page.xpath('//div[@class="result"]').each do |result|
             href,text,host,is_mobile = '','','',false
             a = result.search("a").first
             is_mobile = true unless a.search("img").empty?
@@ -218,7 +215,7 @@ class MbaiduResult < SearchResult
     def ads_top
         id = 0
         result = []
-        @body.search("div[@class='ec_wise_ad']/div").each do |div|
+        @page.search("div[@class='ec_wise_ad']/div").each do |div|
             id += 1
             href = div.search("span[@class='ec_site']").first.text
             href = "http://#{href}"
@@ -265,19 +262,19 @@ class MbaiduResult < SearchResult
 =end
     #下一页
     def next
-        nextbutton = @body.xpath('//a[text()="下一页"]').first
+        nextbutton = @page.xpath('//a[text()="下一页"]').first
         return nil if nextbutton.nil?
         url = nextbutton['href']
         url = URI.join(@baseuri,url).to_s
-        body = HTTParty.get(url)
-        return MbaiduResult.new(body,url,@pagenumber+1)
+        page = HTTParty.get(url)
+        return MbaiduResult.new(page,url,@pagenumber+1)
     end
 
 end
 class Baidu < SearchEngine
     BaseUri = 'http://www.baidu.com/s?'
     def suggestions(wd)
-        json = HTTParty.get("http://suggestion.baidu.com/su?wd=#{URI.encode(wd)}&cb=callback").body.force_encoding('GBK').encode("UTF-8")
+        json = HTTParty.get("http://suggestion.baidu.com/su?wd=#{URI.encode(wd)}&cb=callback").page.force_encoding('GBK').encode("UTF-8")
         m = /\[([^\]]*)\]/.match json
         return JSON.parse m[0]
     end
@@ -307,7 +304,7 @@ class Baidu < SearchEngine
 =end
 
     def popular?(wd)
-        return HTTParty.get("http://index.baidu.com/main/word.php?word=#{URI.encode(wd.encode("GBK"))}").body.include?"boxFlash"
+        return HTTParty.get("http://index.baidu.com/main/word.php?word=#{URI.encode(wd.encode("GBK"))}").page.include?"boxFlash"
     end
 
     def query(wd)
@@ -320,9 +317,9 @@ class Baidu < SearchEngine
         begin
             # @page = @a.get uri
             @page = HTTParty.get uri
-            BaiduResult.new(@page,uri)
-        rescue Net::HTTP::Persistent::Error
-            warn "[timeout] #{uri}"
+            BaiduResult.new(@page,uri,1,@pagesize)
+        rescue Exception => e
+            warn e.to_s
             return false
         end
 =begin
@@ -351,31 +348,27 @@ class Baidu < SearchEngine
     def how_many_pages_with(host,string)
         query("site:#{host} inurl:#{string}").how_many
     end
-
-=begin
-    private
-    def clean
-        @page.body.force_encoding('GBK')
-        @page.body.encode!('UTF-8',:invalid => :replace, :undef => :replace, :replace => "")
-        @page.body.gsub! ("[\U0080-\U2C77]+") #mechanize will be confuzed without removing the few characters
-    end
-=end
 end
 
 class BaiduResult < SearchResult
-    def initialize(page,baseuri,pagenumber=1)
-        @page = Nokogiri::HTML page
-        @baseuri = baseuri
-        @pagenumber = pagenumber
-        # raise ArgumentError 'should be Mechanize::Page' unless page.class == Mechanize::Page
-        # @page = page
-    end
-
+    # def initialize(page,baseuri,pagenumber=1,pagesize=100)
+    #     @page = Nokogiri::HTML page
+    #     @baseuri = baseuri
+    #     @pagenumber = pagenumber
+    #     @pagesize = pagesize
+    #     # raise ArgumentError 'should be Mechanize::Page' unless page.class == Mechanize::Page
+    #     # @page = page
+    # end
     def ranks
         return @ranks unless @ranks.nil?
         @ranks = Hash.new
         @page.search("//table[@class=\"result\"]|//table[@class=\"result-op\"]").each do |table|
             id = table['id']
+            if @pagesize == 10
+                id = table['id'][-1,1]
+                id = '10' if id == '0'
+            end
+
             @ranks[id] = Hash.new
             url = table.search("[@class=\"g\"]").first
             url = url.text unless url.nil?
@@ -395,22 +388,27 @@ class BaiduResult < SearchResult
     end
 
     def ads_bottom
-        id = 0
-        ads = {}
-        @page.search("//table[@bgcolor='f5f5f5']").each do |table|
-            next unless table['id'].nil?
-            id += 1
-            ads[id]= parse_ad(table)
-        end
-        ads
+        return {} if @page.search("//table[@bgcolor='f5f5f5']").empty?
+        return ads_top
+        # p @page.search("//table[@bgcolor='f5f5f5']").empty?
     end
     def ads_top
-        id = 0
-        ads = {}
-        @page.search("//table[@bgcolor='f5f5f5']").each do |table|
+        #灰色底推广,上下都有
+        ads = Hash.new
+        @page.search("//table[@bgcolor='#f5f5f5']").each do |table|
+            id = table['id']
             next if id.nil?
-            id += 1
+            id = id[2,3].to_i.to_s
             ads[id]= parse_ad(table)
+        end
+        #白色底推广,只有上部分
+        if ads.empty?
+            @page.search("//table").each do |table|
+                id = table['id']
+                next if id.nil? or id.to_i<3000
+                id = id[2,3].to_i.to_s
+                ads[id]= parse_ad(table)
+            end
         end
         ads
     end
@@ -462,8 +460,8 @@ class BaiduResult < SearchResult
         return if url.nil?
         url = url['href']
         url = URI.join(@baseuri,url).to_s
-        body = HTTParty.get(url)
-        return BaiduResult.new(body,url,@pagenumber+1)
+        page = HTTParty.get(url)
+        return BaiduResult.new(page,url,@pagenumber+1,@pagesize)
         # @page = BaiduResult.new(Mechanize.new.click(@page.link_with(:text=>/下一页/))) unless @page.link_with(:text=>/下一页/).nil?
     end
     def has_result?
