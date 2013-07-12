@@ -75,7 +75,8 @@ class QihooResult < SearchResult
     def ranks
         return @ranks unless @ranks.nil?
         @ranks = Hash.new
-        id = (@pagenumber - 1) * 10
+        # id = (@pagenumber - 1) * 10
+        id = 0
         @page.search('//li[@class="res-list"]').each do |li|
             a = li.search("h3/a").first
             url = li.search("cite")
@@ -85,7 +86,7 @@ class QihooResult < SearchResult
             href = a['href']
             url = url.first.text
             host = Addressable::URI.parse(URI.encode("http://#{url}")).host
-            @ranks[id.to_s] = {'href'=>"http://so.com#{href}",'text'=>text,'host'=>host}
+            @ranks[id.to_s] = {'href'=>a['href'],'text'=>text,'host'=>host}
         end
         @ranks
     end
@@ -93,7 +94,7 @@ class QihooResult < SearchResult
         id = 0
         result = []
         @page.search("//ul[@id='djbox']/li").each do |li|
-            id+=1
+            id += 1
             title = li.search("a").first.text
             href = li.search("cite").first.text.downcase
             host = Addressable::URI.parse(URI.encode(href)).host
@@ -126,7 +127,7 @@ class QihooResult < SearchResult
         next_href = next_href.first['href']
         next_href = URI.join(@baseuri,next_href).to_s
         # next_href = URI.join("http://#{@host}",next_href).to_s
-        next_page = HTTParty.get(next_href).page
+        next_page = HTTParty.get(next_href).next
         return QihooResult.new(next_page,next_href,@pagenumber+1)
         #@page = MbaiduResult.new(Mechanize.new.click(@page.link_with(:text=>/下一页/))) unless @page.link_with(:text=>/下一页/).nil?
     end
@@ -186,7 +187,7 @@ class MbaiduResult < SearchResult
                 id = nil
             else
                 id = id.first.first.to_i
-                id = (@pagenumber-1)*10+id
+                # id = (@pagenumber-1)*10+id
             end
 =begin
             result.children.each do |elem|
@@ -232,7 +233,7 @@ class MbaiduResult < SearchResult
         []
     end
     def related_keywords
-        []
+        @related_keywords ||= @page.search("div[@class='relativewords_info']/a").map{|a|a.text}
     end
 =begin
     #返回当前页中,符合host条件的结果
@@ -269,12 +270,11 @@ class MbaiduResult < SearchResult
         page = HTTParty.get(url)
         return MbaiduResult.new(page,url,@pagenumber+1)
     end
-
 end
 class Baidu < SearchEngine
     BaseUri = 'http://www.baidu.com/s?'
     def suggestions(wd)
-        json = HTTParty.get("http://suggestion.baidu.com/su?wd=#{URI.encode(wd)}&cb=callback").page.force_encoding('GBK').encode("UTF-8")
+        json = HTTParty.get("http://suggestion.baidu.com/su?wd=#{URI.encode(wd)}&cb=callback").force_encoding('GBK').encode("UTF-8")
         m = /\[([^\]]*)\]/.match json
         return JSON.parse m[0]
     end
@@ -304,7 +304,7 @@ class Baidu < SearchEngine
 =end
 
     def popular?(wd)
-        return HTTParty.get("http://index.baidu.com/main/word.php?word=#{URI.encode(wd.encode("GBK"))}").page.include?"boxFlash"
+        return HTTParty.get("http://index.baidu.com/main/word.php?word=#{URI.encode(wd.encode("GBK"))}").include?"boxFlash"
     end
 
     def query(wd)
@@ -372,7 +372,7 @@ class BaiduResult < SearchResult
             @ranks[id] = Hash.new
             url = table.search("[@class=\"g\"]").first
             url = url.text unless url.nil?
-            a = table.search("a").first
+            a = table.search("h3").first
             next if a.nil?
             @ranks[id]['text'] = a.text
             @ranks[id]['href'] = url #a.first['href'].sub('http://www.baidu.com/link?url=','').strip

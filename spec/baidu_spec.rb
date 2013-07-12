@@ -11,10 +11,7 @@ describe Baidu do
     end
 
     it "should return 100,000,000" do
-        page.how_many.should == 100000000
-    end
-    it "should return integer and bigger than 1" do
-        page.rank('site.baidu.com').should > 1
+        page.how_many.should > 100000
     end
     it "should return 1" do
         page.rank('www.baidu.com').should == 1
@@ -59,7 +56,14 @@ describe Baidu do
     it "查询一个不存在的页面收录情况时,应返回true" do
         baidu.indexed?('http://zxv.not-exists.com').should == false
     end
-
+    page1 = baidu.query('seoaqua.com')
+    it "查询结果应该都能拿到title,href,host" do
+        page1.ranks.each do |id,rank|
+            rank['href'].should_not == nil
+            rank['text'].should_not == nil
+            rank['host'].should_not == nil
+        end
+    end
     # ads_page = baidu.query '减肥药'
 
 end
